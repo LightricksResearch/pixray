@@ -3,7 +3,7 @@
 fastapi==0.73.0
 # these are minimal requirements for just the VQGAN drawer
 
-#-f https://download.pytorch.org/whl/torch_stable.html
+-f https://download.pytorch.org/whl/torch_stable.html
 torch==1.10.2+cu113
 torchvision==0.11.3+cu113
 torchtext
