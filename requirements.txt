@@ -1,13 +1,14 @@
-### THIS IS THE SAME AS REQUIREMENTS.TXT but with a different version of cuda (102) for cog
+### THIS IS THE SAME AS REQUIREMENTS.TXT but with a different version of cuda (113) for cog
 
+fastapi==0.73.0
 # these are minimal requirements for just the VQGAN drawer
 
 #-f https://download.pytorch.org/whl/torch_stable.html
-#torch==1.9.0+cu102
-#torchvision==0.10.0+cu102
+torch==1.10.2+cu113
+torchvision==0.11.3+cu113
 torchtext
 
-numpy==1.19.4
+numpy==1.22.2
 tqdm==4.49.0
 matplotlib==3.3.4
 braceexpand==0.1.7
