@@ -64,6 +64,8 @@ async def predict(request: Request):
     body = await request.json()
     prompts = body["instances"]
     logger.info(f"prompt {prompts}")
+    if isinstance(prompts, list):
+        prompts = prompts[0]
     print(f"Model Called with prompts: `{prompts}`")
     output_path = run(prompts, iterations=100)
     with open(output_path, "rb") as image_data:
