@@ -1,10 +1,8 @@
 import base64
 import logging
 import os
-import sys
 from pathlib import Path
 import tempfile, shutil
-import joblib
 
 from fastapi import Request, FastAPI
 
@@ -15,15 +13,6 @@ READY = False
 app = FastAPI()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
-# create file handler which logs even debug messages
-fh = logging.FileHandler("spam.log")
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-# add formatter to ch
-fh.setFormatter(formatter)
-
-fh.setLevel(logging.DEBUG)
-logger.addHandler(fh)
 
 AIP_HEALTH_ROUTE = os.environ.get("AIP_HEALTH_ROUTE", "/health_check")
 AIP_PREDICT_ROUTE = os.environ.get("AIP_PREDICT_ROUTE", "/predict")
@@ -51,15 +40,16 @@ def run(prompt, **kwargs):
         run_complete = pixray.do_run(settings, return_display=True)
         output_file = os.path.join(settings.outdir, settings.output)
         temp_copy = create_temporary_copy(output_file)
-        logger.info(f"output newer version of result {i}")
+        logger.info(f"iterating result for `{prompt}` output num: {i}")
         i += 1
     ret_val = Path(os.path.realpath(temp_copy))
     return ret_val
 
 
-run("test", iterations=1)
+logger.info("MODELS LOADED - RUNNING TEST RUN")
+# run("test", iterations=1)
 READY = True
-print(f" READY {READY}")
+print(f"TEST RUN FINSHED, READY {READY}")
 
 
 @app.get(AIP_HEALTH_ROUTE)
@@ -74,7 +64,7 @@ async def predict(request: Request):
     body = await request.json()
     prompts = body["instances"]
     logger.info(f"prompt {prompts}")
-    print(f"prompt {prompts}")
+    print(f"Model Called with prompts: `{prompts}`")
     output_path = run(prompts, iterations=100)
     with open(output_path, "rb") as image_data:
         response = {
