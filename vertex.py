@@ -1,11 +1,13 @@
 import base64
 import logging
 import os
+import time
 from pathlib import Path
 import tempfile, shutil
 
 from fastapi import Request, FastAPI
 
+from google.cloud import storage
 
 import uvicorn
 
@@ -19,6 +21,20 @@ AIP_PREDICT_ROUTE = os.environ.get("AIP_PREDICT_ROUTE", "/predict")
 MODEL_ARTIFACTS = os.environ.get("AIP_STORAGE_URI", ".")
 
 
+def save_to_bucket(inputpath, output_path):
+    client = storage.Client()
+    bucket = client.get_bucket(MODEL_ARTIFACTS)
+    blob = bucket.blob(
+        "outputs/" + output_path
+    )  # This defines the path where the file will be stored in the bucket
+    your_file_contents = blob.upload_from_filename(filename=inputpath)
+    print(
+        "File {} uploaded to {}.".format(
+            inputpath, output_path
+        )
+    )
+
+
 def create_temporary_copy(src_path):
     _, tf_suffix = os.path.splitext(src_path)
     temp_dir = tempfile.gettempdir()
@@ -27,11 +43,12 @@ def create_temporary_copy(src_path):
     return temp_path
 
 
-def run(prompt, **kwargs):
+def run(kwargs):
     import pixray
 
+    print(f"Model Called with args: `{kwargs}`")
     pixray.reset_settings()
-    pixray.add_settings(prompts=prompt, quality="draft", custom_loss="aesthetic", **kwargs)
+    pixray.add_settings(**kwargs)
     settings = pixray.apply_settings()
     pixray.do_init(settings)
     run_complete = False
@@ -39,8 +56,10 @@ def run(prompt, **kwargs):
     while not run_complete:
         run_complete = pixray.do_run(settings, return_display=True)
         output_file = os.path.join(settings.outdir, settings.output)
+        time_string = time.strftime("%Y%m%d-%H%M%S")
+        save_to_bucket(inputpath=output_file, output_path=time_string + ".png")
         temp_copy = create_temporary_copy(output_file)
-        logger.info(f"iterating result for `{prompt}` output num: {i}")
+        logger.info(f"iterating result for `{kwargs['prompt']}` output num: {i}")
         i += 1
     ret_val = Path(os.path.realpath(temp_copy))
     return ret_val
@@ -66,8 +85,8 @@ async def predict(request: Request):
     if isinstance(instance, list):
         instance = instance[0]
     logger.info(f"instances {instance}")
-    print(f"Model Called with instance: `{instance}`")
-    output_path = run(**instance)
+
+    output_path = run(instance)
     with open(output_path, "rb") as image_data:
         response = {
             "predictions": [{"image_bytes": {"b64": base64.b64encode(image_data.read()).decode()}}]
