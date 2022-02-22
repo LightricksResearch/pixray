@@ -18,12 +18,12 @@ logger.setLevel(logging.DEBUG)
 
 AIP_HEALTH_ROUTE = os.environ.get("AIP_HEALTH_ROUTE", "/health_check")
 AIP_PREDICT_ROUTE = os.environ.get("AIP_PREDICT_ROUTE", "/predict")
-MODEL_ARTIFACTS = os.environ.get("AIP_STORAGE_URI", ".")
+MODEL_ARTIFACTS = os.environ.get("AIP_STORAGE_URI", "gs://ltx_text_us")
 
 
 def save_to_bucket(inputpath, output_path):
     client = storage.Client()
-    bucket = client.get_bucket(MODEL_ARTIFACTS)
+    bucket = client.get_bucket("ltx_text_us")
     blob = bucket.blob(
         "outputs/" + output_path
     )  # This defines the path where the file will be stored in the bucket
@@ -87,6 +87,7 @@ async def predict(request: Request):
     logger.info(f"instances {instance}")
 
     output_path = run(instance)
+    # print(f"result output_path {output_path}")
     with open(output_path, "rb") as image_data:
         response = {
             "predictions": [{"image_bytes": {"b64": base64.b64encode(image_data.read()).decode()}}]
