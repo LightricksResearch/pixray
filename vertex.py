@@ -62,12 +62,12 @@ def check_health():
 @app.post(AIP_PREDICT_ROUTE)
 async def predict(request: Request):
     body = await request.json()
-    prompts = body["instances"]
-    logger.info(f"prompt {prompts}")
-    if isinstance(prompts, list):
-        prompts = prompts[0]
-    print(f"Model Called with prompts: `{prompts}`")
-    output_path = run(prompts, iterations=100)
+    instance = body["instances"]
+    if isinstance(instance, list):
+        instance = instance[0]
+    logger.info(f"instances {instance}")
+    print(f"Model Called with instance: `{instance}`")
+    output_path = run(**instance)
     with open(output_path, "rb") as image_data:
         response = {
             "predictions": [{"image_bytes": {"b64": base64.b64encode(image_data.read()).decode()}}]
