@@ -26,3 +26,6 @@ com.txt
 
 # Cog
 .cog
+.idea
+
+.DS_Store

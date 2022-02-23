@@ -1,5 +1,6 @@
 import base64
 import logging
+import multiprocessing
 import os
 import time
 from pathlib import Path
@@ -12,6 +13,7 @@ from google.cloud import storage
 import uvicorn
 
 READY = False
+TIME_OUT = 20 * 60
 app = FastAPI()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -19,20 +21,18 @@ logger.setLevel(logging.DEBUG)
 AIP_HEALTH_ROUTE = os.environ.get("AIP_HEALTH_ROUTE", "/health_check")
 AIP_PREDICT_ROUTE = os.environ.get("AIP_PREDICT_ROUTE", "/predict")
 MODEL_ARTIFACTS = os.environ.get("AIP_STORAGE_URI", "gs://ltx_text_us")
+EXPORT_BUCKET = os.environ.get("EXPORT_BUCKET", "ltx_text_us")
 
 
 def save_to_bucket(inputpath, output_path):
-    client = storage.Client()
-    bucket = client.get_bucket("ltx_text_us")
-    blob = bucket.blob(
-        "outputs/" + output_path
-    )  # This defines the path where the file will be stored in the bucket
-    your_file_contents = blob.upload_from_filename(filename=inputpath)
-    print(
-        "File {} uploaded to {}.".format(
-            inputpath, output_path
-        )
-    )
+    if len(EXPORT_BUCKET) > 0:
+        client = storage.Client()
+        bucket = client.get_bucket(EXPORT_BUCKET)
+        blob = bucket.blob(
+            "outputs/" + output_path
+        )  # This defines the path where the file will be stored in the bucket
+        _ = blob.upload_from_filename(filename=inputpath)
+        print("File {} uploaded to {}.".format(inputpath, output_path))
 
 
 def create_temporary_copy(src_path):
@@ -53,22 +53,36 @@ def run(kwargs):
     pixray.do_init(settings)
     run_complete = False
     i = 0
+    prompts = kwargs.get("prompts", "")
     while not run_complete:
         run_complete = pixray.do_run(settings, return_display=True)
         output_file = os.path.join(settings.outdir, settings.output)
         time_string = time.strftime("%Y%m%d-%H%M%S")
-        save_to_bucket(inputpath=output_file, output_path=time_string + ".png")
+        save_to_bucket(inputpath=output_file, output_path=prompts + "_¬" + time_string + ".png")
         temp_copy = create_temporary_copy(output_file)
-        logger.info(f"iterating result for `{kwargs['prompt']}` output num: {i}")
+        logger.info(f"iterating result for `{prompts}` output num: {i}")
         i += 1
     ret_val = Path(os.path.realpath(temp_copy))
     return ret_val
 
 
 logger.info("MODELS LOADED - RUNNING TEST RUN")
-# run("test", iterations=1)
+run_args = {"instances": {"prompts": "the eiffel tower", "iterations": 1}}
+p = multiprocessing.Process(target=run, kwargs=run_args)
+print("start - preload function")
+p.start()
+
+# Wait for X seconds or until process finishes
+p.join(timeout=TIME_OUT)
+# If thread is still active
+if p.is_alive():
+    print("Timeout - kill preload function")
+    p.terminate()
+    p.kill()
+    p.join()
+
 READY = True
-print(f"TEST RUN FINSHED, READY {READY}")
+print(f"TEST RUN FINISHED, READY = {READY}")
 
 
 @app.get(AIP_HEALTH_ROUTE)
@@ -87,7 +101,6 @@ async def predict(request: Request):
     logger.info(f"instances {instance}")
 
     output_path = run(instance)
-    # print(f"result output_path {output_path}")
     with open(output_path, "rb") as image_data:
         response = {
             "predictions": [{"image_bytes": {"b64": base64.b64encode(image_data.read()).decode()}}]
@@ -96,10 +109,9 @@ async def predict(request: Request):
 
 
 if __name__ == "__main__":
-    import argparse
 
-    p = argparse.ArgumentParser()
-    p.add_argument("--host", default="0.0.0.0")
-    p.add_argument("--port", type=int, default=8080)
-    args = p.parse_args()
-    uvicorn.run(app, host=args.host, port=args.port)
+    host = os.environ.get("VERTEX_HOST", "0.0.0.0")
+    port = int(os.environ.get("VERTEX_PORT", 8080))
+    workers = int(os.environ.get("WORKERS", 2))
+    print(f"starting uvicorn with {host} and {port} workers={workers}")
+    uvicorn.run("vertex:app", host=host, port=port, workers=workers)
