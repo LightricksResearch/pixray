@@ -58,11 +58,11 @@ def run(kwargs):
         run_complete = pixray.do_run(settings, return_display=True)
         output_file = os.path.join(settings.outdir, settings.output)
         time_string = time.strftime("%Y%m%d-%H%M%S")
-        save_to_bucket(inputpath=output_file, output_path=prompts + "_¬" + time_string + ".png")
         temp_copy = create_temporary_copy(output_file)
         logger.info(f"iterating result for `{prompts}` output num: {i}")
         i += 1
     ret_val = Path(os.path.realpath(temp_copy))
+    save_to_bucket(inputpath=ret_val, output_path=prompts + "_¬" + time_string + ".png")
     return ret_val
 
 
